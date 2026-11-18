@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import joblib
@@ -251,16 +250,16 @@ div[data-baseweb="select"] > div {
 </style>
 """)
 
-# Model path
-MODEL_PATH = (
-    "/content/drive/MyDrive/Traffic_Prediction_Project/"
-    "random_forest_traffic_model.pkl"
-)
-
-# Load model
+# Load model from Hugging Face
 @st.cache_resource
 def load_model():
-    return joblib.load(MODEL_PATH)
+    from huggingface_hub import hf_hub_download
+
+    model_path = hf_hub_download(
+        repo_id="manojHanumanthu/traffic-prediction-random-forest",
+        filename="random_forest_traffic_model (1).pkl"
+    )
+    return joblib.load(model_path)
 
 try:
     model = load_model()
@@ -356,8 +355,8 @@ elif page == "Traffic Prediction":
 
     st.divider()
 
-    DATA_PATH = (
-        "/content/drive/MyDrive/Traffic_Prediction_Project/"
+    DATA_PATH = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
         "historical_traffic_data.csv"
     )
 
@@ -669,16 +668,6 @@ elif page == "Traffic Prediction":
 
                     results = []
 
-                    # Get simulated traffic profile for selected location
-                    profile_name, hourly_profile = get_location_traffic_profile(
-                        area, city
-                    )
-
-                    st.info(
-                        f"Location profile: {profile_name}. "
-                        "Location traffic index is simulated, not live traffic data."
-                    )
-
                     # Always start at 12 AM on the selected date
                     start_timestamp = pd.Timestamp(selected_date)
 
@@ -734,23 +723,10 @@ elif page == "Traffic Prediction":
                             weather_name = "Weather unavailable"
                             cloud_coverage = None
 
-                        location_index = round(
-                            hourly_profile[timestamp.hour] * 100
-                        )
-
-                        if location_index < 40:
-                            simulated_level = "Low"
-                        elif location_index < 70:
-                            simulated_level = "Moderate"
-                        else:
-                            simulated_level = "Heavy"
-
                         results.append({
                             "Time": timestamp.strftime("%I %p"),
                             "Estimated Traffic Volume": round(max(0, prediction)),
-                            "RF Congestion (Minnesota data)": get_congestion(prediction),
-                            "Simulated Traffic Index": location_index,
-                            "Simulated Congestion": simulated_level,
+                            "Congestion": get_congestion(prediction),
                             "Temperature (°C)": temperature,
                             "Weather": weather_name,
                             "Cloud Coverage (%)": cloud_coverage
@@ -780,7 +756,7 @@ elif page == "Traffic Prediction":
                         use_container_width=True
                     )
 
-                    st.subheader("Hourly Traffic Trend (Random Forest)")
+                    st.subheader("Hourly Traffic Trend")
 
                     st.line_chart(
                         result_df.set_index("Time")[
@@ -788,26 +764,18 @@ elif page == "Traffic Prediction":
                         ]
                     )
 
-                    st.subheader("Location-Specific Simulated Traffic Pattern")
-
-                    st.line_chart(
-                        result_df.set_index("Time")[
-                            "Simulated Traffic Index"
-                        ]
-                    )
-
                     busiest = result_df.loc[
-                        result_df["Simulated Traffic Index"].idxmax()
+                        result_df["Estimated Traffic Volume"].idxmax()
                     ]
 
                     quietest = result_df.loc[
-                        result_df["Simulated Traffic Index"].idxmin()
+                        result_df["Estimated Traffic Volume"].idxmin()
                     ]
 
                     c1, c2 = st.columns(2)
 
-                    c1.metric("Simulated Busiest Hour", busiest["Time"])
-                    c2.metric("Simulated Least Busy Hour", quietest["Time"])
+                    c1.metric("Busiest Hour", busiest["Time"])
+                    c2.metric("Least Busy Hour", quietest["Time"])
 
 # Manual date and time prediction
                 else:
